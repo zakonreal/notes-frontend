@@ -1,99 +1,158 @@
-// src/pages/NotesPage.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-    Box, Container, Typography, Button,
-    Grid, Card, CardContent, CardActions,
-    TextField, MenuItem, IconButton,
-    FormControl, InputLabel, Select,
-    Checkbox, FormControlLabel, Pagination
+    Container, Box, Typography, Button,
+    Grid, Modal, CircularProgress, Snackbar, Alert
 } from '@mui/material';
-import {
-    Add as AddIcon,
-    Search as SearchIcon,
-    FilterList as FilterIcon,
-    Edit as EditIcon,
-    Delete as DeleteIcon,
-    CheckCircle as CheckCircleIcon,
-    Notifications as NotificationsIcon,
-    Image as ImageIcon
-} from '@mui/icons-material';
+import { Add as AddIcon, FileDownload as ExportIcon } from '@mui/icons-material';
 import Layout from '../components/Layout';
+import NoteForm from '../components/NoteForm';
+import NoteList from '../components/NoteList';
+import { noteAPI, categoryAPI } from '../services/api';
 
 const NotesPage = () => {
-    const [filterOpen, setFilterOpen] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [categoryFilter, setCategoryFilter] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
-    const [sortBy, setSortBy] = useState('newest');
+    const [notes, setNotes] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [openForm, setOpenForm] = useState(false);
+    const [currentNote, setCurrentNote] = useState(null);
+    const [snackbar, setSnackbar] = useState({
+        open: false,
+        message: '',
+        severity: 'success'
+    });
 
-    const categories = [
-        { id: 1, name: 'Работа' },
-        { id: 2, name: 'Личное' },
-        { id: 3, name: 'Покупки' },
-        { id: 4, name: 'Идеи' },
-    ];
+    const fetchNotes = async (page = 1, filters = {}) => {
+        setLoading(true);
+        try {
+            const params = {
+                offset: (page - 1) * 10,
+                limit: 10,
+                ...filters
+            };
 
-    const notes = [
-        {
-            id: 1,
-            title: 'Завершить проект',
-            content: 'Доработать ТЗ и отправить клиенту',
-            category: 'Работа',
-            createdDate: '2025-07-20',
-            reminder: '2025-07-25T18:00:00',
-            completed: false,
-            image: null
-        },
-        {
-            id: 2,
-            title: 'Купить подарок',
-            content: 'Купить подарок на день рождения',
-            category: 'Личное',
-            createdDate: '2025-07-22',
-            reminder: null,
-            completed: true,
-            image: 'gift.jpg'
-        },
-        {
-            id: 3,
-            title: 'Молоко',
-            content: 'Купить молоко и хлеб',
-            category: 'Покупки',
-            createdDate: '2025-07-23',
-            reminder: null,
-            completed: false,
-            image: null
-        },
-        {
-            id: 4,
-            title: 'Идея для приложения',
-            content: 'Разработать систему управления задачами с интеграцией календаря',
-            category: 'Идеи',
-            createdDate: '2025-07-24',
-            reminder: '2025-08-01T10:00:00',
-            completed: false,
-            image: 'idea.jpg'
-        },
-    ];
-
-    const handleAddNote = () => {
-        console.log('Добавить новую заметку');
+            const response = await noteAPI.getAll(params);
+            setNotes(response.data.content || []);
+            setTotalPages(response.data.totalPages || 1);
+        } catch (err) {
+            setError('Не удалось загрузить заметки');
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const handleEditNote = (id) => {
-        console.log(`Редактировать заметку ${id}`);
+    const fetchCategories = async () => {
+        try {
+            const response = await categoryAPI.getAll();
+            setCategories(response.data || []);
+        } catch (err) {
+            console.error('Ошибка загрузки категорий:', err);
+        }
     };
 
-    const handleDeleteNote = (id) => {
-        console.log(`Удалить заметку ${id}`);
+    useEffect(() => {
+        fetchNotes(page);
+        fetchCategories();
+    }, [page]);
+
+    const handlePageChange = (newPage) => {
+        setPage(newPage);
     };
 
-    const handleToggleComplete = (id) => {
-        console.log(`Переключить статус заметки ${id}`);
+    const handleFilterChange = (filters) => {
+        fetchNotes(1, filters);
+        setPage(1);
     };
 
-    const handleExportNotes = () => {
-        console.log('Экспортировать заметки');
+    const handleCreateNote = () => {
+        setCurrentNote(null);
+        setOpenForm(true);
+    };
+
+    const handleEditNote = (note) => {
+        setCurrentNote(note);
+        setOpenForm(true);
+    };
+
+    const handleDeleteNote = async (id) => {
+        try {
+            await noteAPI.delete(id);
+            setSnackbar({
+                open: true,
+                message: 'Заметка успешно удалена',
+                severity: 'success'
+            });
+            fetchNotes(page);
+        } catch (err) {
+            setSnackbar({
+                open: true,
+                message: 'Ошибка при удалении заметки',
+                severity: 'error'
+            });
+        }
+    };
+
+    const handleToggleComplete = async (id, completed) => {
+        try {
+            await noteAPI.update(id, { isCompleted: completed });
+            fetchNotes(page);
+        } catch (err) {
+            console.error('Ошибка обновления статуса:', err);
+        }
+    };
+
+    const handleSubmitNote = async (data, imageFile) => {
+        try {
+            if (currentNote) {
+                await noteAPI.update(currentNote.id, data);
+                setSnackbar({
+                    open: true,
+                    message: 'Заметка успешно обновлена',
+                    severity: 'success'
+                });
+            } else {
+                await noteAPI.create(data);
+                setSnackbar({
+                    open: true,
+                    message: 'Заметка успешно создана',
+                    severity: 'success'
+                });
+            }
+            setOpenForm(false);
+            fetchNotes(page);
+        } catch (err) {
+            setSnackbar({
+                open: true,
+                message: `Ошибка: ${err.response?.data?.message || 'Неизвестная ошибка'}`,
+                severity: 'error'
+            });
+        }
+    };
+
+    const handleExportNotes = async () => {
+        try {
+            const response = await noteAPI.export();
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'notes_export.xlsx');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (err) {
+            setSnackbar({
+                open: true,
+                message: 'Ошибка при экспорте заметок',
+                severity: 'error'
+            });
+        }
+    };
+
+    const handleCloseSnackbar = () => {
+        setSnackbar(prev => ({ ...prev, open: false }));
     };
 
     return (
@@ -107,13 +166,14 @@ const NotesPage = () => {
                         <Button
                             variant="contained"
                             startIcon={<AddIcon />}
-                            onClick={handleAddNote}
+                            onClick={handleCreateNote}
                             sx={{ mr: 2 }}
                         >
                             Добавить
                         </Button>
                         <Button
                             variant="outlined"
+                            startIcon={<ExportIcon />}
                             onClick={handleExportNotes}
                         >
                             Экспорт
@@ -121,172 +181,71 @@ const NotesPage = () => {
                     </Box>
                 </Box>
 
-                <Box sx={{ display: 'flex', mb: 4, gap: 2 }}>
-                    <TextField
-                        fullWidth
-                        variant="outlined"
-                        placeholder="Поиск заметок..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        InputProps={{
-                            startAdornment: <SearchIcon sx={{ color: 'action.active', mr: 1 }} />,
-                        }}
-                    />
-                    <IconButton
-                        color="primary"
-                        onClick={() => setFilterOpen(!filterOpen)}
-                        sx={{ border: '1px solid', borderColor: 'divider' }}
-                    >
-                        <FilterIcon />
-                    </IconButton>
-                </Box>
-
-                {filterOpen && (
-                    <Box sx={{
-                        display: 'flex',
-                        gap: 2,
-                        mb: 4,
-                        p: 2,
-                        backgroundColor: 'background.paper',
-                        borderRadius: 1,
-                        boxShadow: 1
-                    }}>
-                        <FormControl sx={{ minWidth: 150 }} size="small">
-                            <InputLabel>Категория</InputLabel>
-                            <Select
-                                value={categoryFilter}
-                                onChange={(e) => setCategoryFilter(e.target.value)}
-                                label="Категория"
-                            >
-                                <MenuItem value="">Все</MenuItem>
-                                {categories.map(category => (
-                                    <MenuItem key={category.id} value={category.id}>
-                                        {category.name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-
-                        <FormControl sx={{ minWidth: 150 }} size="small">
-                            <InputLabel>Статус</InputLabel>
-                            <Select
-                                value={statusFilter}
-                                onChange={(e) => setStatusFilter(e.target.value)}
-                                label="Статус"
-                            >
-                                <MenuItem value="all">Все</MenuItem>
-                                <MenuItem value="completed">Выполненные</MenuItem>
-                                <MenuItem value="active">Активные</MenuItem>
-                            </Select>
-                        </FormControl>
-
-                        <FormControl sx={{ minWidth: 150 }} size="small">
-                            <InputLabel>Сортировка</InputLabel>
-                            <Select
-                                value={sortBy}
-                                onChange={(e) => setSortBy(e.target.value)}
-                                label="Сортировка"
-                            >
-                                <MenuItem value="newest">Сначала новые</MenuItem>
-                                <MenuItem value="oldest">Сначала старые</MenuItem>
-                                <MenuItem value="title">По названию</MenuItem>
-                            </Select>
-                        </FormControl>
+                {loading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+                        <CircularProgress />
                     </Box>
+                ) : error ? (
+                    <Alert severity="error" sx={{ mb: 3 }}>
+                        {error}
+                    </Alert>
+                ) : (
+                    <NoteList
+                        notes={notes}
+                        onEdit={handleEditNote}
+                        onDelete={handleDeleteNote}
+                        onToggleComplete={handleToggleComplete}
+                        onPageChange={handlePageChange}
+                        page={page}
+                        totalPages={totalPages}
+                        onFilterChange={handleFilterChange}
+                        categories={categories}
+                    />
                 )}
 
-                <Grid container spacing={3}>
-                    {notes.map(note => (
-                        <Grid item xs={12} sm={6} md={4} key={note.id}>
-                            <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                                <CardContent sx={{ flexGrow: 1 }}>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                                        <Typography variant="body2" color="text.secondary">
-                                            {note.category}
-                                        </Typography>
-                                        <Box>
-                                            {note.reminder && (
-                                                <NotificationsIcon
-                                                    fontSize="small"
-                                                    color="primary"
-                                                    sx={{ mr: 1 }}
-                                                />
-                                            )}
-                                            <CheckCircleIcon
-                                                fontSize="small"
-                                                color={note.completed ? 'success' : 'disabled'}
-                                            />
-                                        </Box>
-                                    </Box>
+                <Modal
+                    open={openForm}
+                    onClose={() => setOpenForm(false)}
+                    aria-labelledby="note-form-modal"
+                >
+                    <Box sx={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        width: { xs: '90%', md: '70%' },
+                        bgcolor: 'background.paper',
+                        boxShadow: 24,
+                        p: 4,
+                        borderRadius: 2,
+                        maxHeight: '90vh',
+                        overflowY: 'auto'
+                    }}>
+                        <Typography variant="h5" component="h2" mb={3}>
+                            {currentNote ? 'Редактирование заметки' : 'Создание новой заметки'}
+                        </Typography>
+                        <NoteForm
+                            note={currentNote}
+                            categories={categories}
+                            onSubmit={handleSubmitNote}
+                            onCancel={() => setOpenForm(false)}
+                        />
+                    </Box>
+                </Modal>
 
-                                    <Typography variant="h6" component="div" sx={{ mb: 1 }}>
-                                        {note.title}
-                                    </Typography>
-
-                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                        {note.createdDate}
-                                    </Typography>
-
-                                    <Typography variant="body1" paragraph>
-                                        {note.content}
-                                    </Typography>
-
-                                    {note.image && (
-                                        <Box sx={{
-                                            height: 100,
-                                            backgroundColor: 'grey.100',
-                                            borderRadius: 1,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            mb: 2
-                                        }}>
-                                            <ImageIcon color="action" />
-                                        </Box>
-                                    )}
-
-                                    {note.reminder && (
-                                        <Typography variant="body2" color="primary">
-                                            Напоминание: {new Date(note.reminder).toLocaleString()}
-                                        </Typography>
-                                    )}
-                                </CardContent>
-
-                                <CardActions sx={{ justifyContent: 'space-between', p: 2 }}>
-                                    <FormControlLabel
-                                        control={
-                                            <Checkbox
-                                                checked={note.completed}
-                                                onChange={() => handleToggleComplete(note.id)}
-                                            />
-                                        }
-                                        label={note.completed ? "Выполнено" : "Выполнить"}
-                                    />
-                                    <Box>
-                                        <IconButton
-                                            aria-label="edit"
-                                            onClick={() => handleEditNote(note.id)}
-                                            color="primary"
-                                        >
-                                            <EditIcon />
-                                        </IconButton>
-                                        <IconButton
-                                            aria-label="delete"
-                                            onClick={() => handleDeleteNote(note.id)}
-                                            color="error"
-                                        >
-                                            <DeleteIcon />
-                                        </IconButton>
-                                    </Box>
-                                </CardActions>
-                            </Card>
-                        </Grid>
-                    ))}
-                </Grid>
-
-                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-                    <Pagination count={5} color="primary" />
-                </Box>
+                <Snackbar
+                    open={snackbar.open}
+                    autoHideDuration={6000}
+                    onClose={handleCloseSnackbar}
+                >
+                    <Alert
+                        onClose={handleCloseSnackbar}
+                        severity={snackbar.severity}
+                        sx={{ width: '100%' }}
+                    >
+                        {snackbar.message}
+                    </Alert>
+                </Snackbar>
             </Container>
         </Layout>
     );

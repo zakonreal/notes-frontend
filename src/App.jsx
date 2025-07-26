@@ -1,9 +1,9 @@
-// src/App.js
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import AuthProvider from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
+import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
@@ -52,26 +52,39 @@ const theme = createTheme({
     },
 });
 
-function App() {
+const PrivateRoute = ({ children }) => {
+    const { currentUser } = useAuth();
+    return currentUser ? children : <Navigate to="/login" />;
+};
+
+const AdminRoute = ({ children }) => {
+    const { currentUser } = useAuth();
+    return currentUser?.login === 'admin' ? children : <Navigate to="/" />;
+};
+
+const App = () => {
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline />
             <AuthProvider>
                 <Router>
                     <Routes>
-                        <Route path="/" element={<LoginPage />} />
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/register" element={<RegisterPage />} />
-                        <Route path="/dashboard" element={<DashboardPage />} />
-                        <Route path="/notes" element={<NotesPage />} />
-                        <Route path="/categories" element={<CategoriesPage />} />
-                        <Route path="/admin" element={<AdminPage />} />
-                        <Route path="/settings" element={<SettingsPage />} />
+                        <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
+                            <Route index element={<Navigate to="/dashboard" />} />
+                            <Route path="dashboard" element={<DashboardPage />} />
+                            <Route path="notes" element={<NotesPage />} />
+                            <Route path="categories" element={<CategoriesPage />} />
+                            <Route path="settings" element={<SettingsPage />} />
+                            <Route path="admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
+                        </Route>
+                        <Route path="*" element={<Navigate to="/dashboard" />} />
                     </Routes>
                 </Router>
             </AuthProvider>
         </ThemeProvider>
     );
-}
+};
 
 export default App;

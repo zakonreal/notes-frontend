@@ -1,24 +1,18 @@
-// src/components/Layout.jsx
 import React, { useState } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
-import { styled, useTheme } from '@mui/material/styles';
 import {
-    AppBar, Toolbar, Drawer, Box,
-    List, ListItem, ListItemButton, ListItemIcon, ListItemText,
-    IconButton, Typography, Avatar, Menu, MenuItem, Divider,
-    useMediaQuery, Badge
+    AppBar, Toolbar, Drawer, Box, List, ListItem,
+    ListItemButton, ListItemIcon, ListItemText, IconButton,
+    Typography, Avatar, Menu, MenuItem, Divider, useMediaQuery, Badge
 } from '@mui/material';
 import {
-    Menu as MenuIcon,
-    Dashboard as DashboardIcon,
-    Notes as NotesIcon,
-    Category as CategoryIcon,
-    AdminPanelSettings as AdminIcon,
-    Settings as SettingsIcon,
-    Notifications as NotificationsIcon,
-    Logout as LogoutIcon,
-    AccountCircle as AccountCircleIcon
+    Menu as MenuIcon, Dashboard as DashboardIcon, Notes as NotesIcon,
+    Category as CategoryIcon, AdminPanelSettings as AdminIcon,
+    Settings as SettingsIcon, Notifications as NotificationsIcon,
+    Logout as LogoutIcon, AccountCircle as AccountCircleIcon
 } from '@mui/icons-material';
+import { styled, useTheme } from '@mui/material/styles';
+import { Outlet, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const drawerWidth = 240;
 
@@ -41,6 +35,7 @@ const DrawerHeader = styled('div')(({ theme }) => ({
 const Layout = () => {
     const theme = useTheme();
     const navigate = useNavigate();
+    const { currentUser, logout } = useAuth();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const [mobileOpen, setMobileOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState(null);
@@ -50,7 +45,7 @@ const Layout = () => {
         { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
         { text: 'Заметки', icon: <NotesIcon />, path: '/notes' },
         { text: 'Категории', icon: <CategoryIcon />, path: '/categories' },
-        { text: 'Администрирование', icon: <AdminIcon />, path: '/admin' },
+        ...(currentUser?.login === 'admin' ? [{ text: 'Администрирование', icon: <AdminIcon />, path: '/admin' }] : []),
         { text: 'Настройки', icon: <SettingsIcon />, path: '/settings' },
     ];
 
@@ -67,7 +62,7 @@ const Layout = () => {
     };
 
     const handleLogout = () => {
-        // Логика выхода
+        logout();
         navigate('/login');
     };
 
@@ -134,7 +129,7 @@ const Layout = () => {
                             color="inherit"
                         >
                             <Avatar sx={{ bgcolor: theme.palette.secondary.main }}>
-                                <AccountCircleIcon />
+                                {currentUser?.login?.charAt(0).toUpperCase() || <AccountCircleIcon />}
                             </Avatar>
                         </IconButton>
                         <Menu

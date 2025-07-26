@@ -1,4 +1,3 @@
-// src/pages/LoginPage.jsx
 import React, { useState } from 'react';
 import {
     Container, Box, Typography, TextField,
@@ -6,17 +5,44 @@ import {
     FormControlLabel, Paper
 } from '@mui/material';
 import { Lock as LockIcon } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const LoginPage = () => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [rememberMe, setRememberMe] = useState(false);
+    const [loginData, setLoginData] = useState({
+        login: '',
+        password: '',
+        rememberMe: false
+    });
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const navigate = useNavigate();
+    const { login } = useAuth();
 
-    const handleSubmit = (e) => {
+    const handleChange = (e) => {
+        const { name, value, checked } = e.target;
+        setLoginData(prev => ({
+            ...prev,
+            [name]: name === 'rememberMe' ? checked : value
+        }));
+    };
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // Логика входа
-        console.log('Вход с:', { email, password, rememberMe });
+        setError('');
+        setLoading(true);
+
+        try {
+            await login({
+                login: loginData.login,
+                password: loginData.password
+            });
+            navigate('/dashboard');
+        } catch (err) {
+            setError('Неверные учетные данные');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -43,13 +69,13 @@ const LoginPage = () => {
                         margin="normal"
                         required
                         fullWidth
-                        id="email"
-                        label="Email"
-                        name="email"
-                        autoComplete="email"
+                        id="login"
+                        label="Логин"
+                        name="login"
+                        autoComplete="username"
                         autoFocus
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        value={loginData.login}
+                        onChange={handleChange}
                         variant="outlined"
                     />
 
@@ -62,18 +88,18 @@ const LoginPage = () => {
                         type="password"
                         id="password"
                         autoComplete="current-password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        value={loginData.password}
+                        onChange={handleChange}
                         variant="outlined"
                     />
 
                     <FormControlLabel
                         control={
                             <Checkbox
-                                value="remember"
+                                name="rememberMe"
                                 color="primary"
-                                checked={rememberMe}
-                                onChange={(e) => setRememberMe(e.target.checked)}
+                                checked={loginData.rememberMe}
+                                onChange={handleChange}
                             />
                         }
                         label="Запомнить меня"
@@ -84,9 +110,10 @@ const LoginPage = () => {
                         type="submit"
                         fullWidth
                         variant="contained"
+                        disabled={loading}
                         sx={{ mt: 3, mb: 2, py: 1.5 }}
                     >
-                        Войти
+                        {loading ? 'Вход...' : 'Войти'}
                     </Button>
 
                     <Grid container>
